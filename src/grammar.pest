@@ -1,0 +1,120 @@
+//
+// Created by intellij-pest on 2025-06-26
+// grammar
+// Author: pbrass
+//
+
+Program = _{ SOI ~ Expr ~ EOI }
+
+Expr = { UnaryExpr | BinaryExpr | Term }
+
+BinaryExpr = {AndExpr | OrExpr}
+
+OrExpr = { Term ~ (OrOperator ~ Expr)+ }
+AndExpr = { Term ~ (AndOperator? ~ Expr)+ }
+
+AndOperator = {"-and" | "-a"}
+OrOperator = {"-or" | "-o"}
+
+Term = {Test | "(" ~ Expr ~ ")" }
+
+Test = { Name | Iname | Regex | True | False | Type | Size | Path | Empty | Amin | Atime | Ctime | Cmin | Mmin
+       | Mtime | Anewer | Cnewer | Mnewer | Newer | Ipath | Iregex | User | Group | Uid | Gid }
+
+Empty = {"-empty"}
+
+Path = {"-path" ~ Glob}
+
+Ipath = {"-ipath" ~ Glob}
+
+Name = {"-name" ~ Glob}
+
+Iname = {"-iname" ~ Glob}
+
+Regex = {"-regex" ~ Pattern}
+
+Iregex = {"-iregex" ~ Pattern}
+
+NotWhitespace = _{!(SEPARATOR | "(" | ")" | "!" ) ~ ANY}
+
+Glob = ${NotWhitespace+}
+
+Pattern = ${NotWhitespace+}
+
+True = {"-true"}
+
+False = {"-false"}
+
+Type = {"-type" ~ Filetype}
+
+Size = {"-size" ~ Sizespec}
+
+Amin = {"-amin" ~ Timespec}
+
+Atime = {"-atime" ~ Timespec}
+
+Ctime = {"-ctime" ~ Timespec}
+
+Cmin = {"-cmin" ~ Timespec}
+
+Mmin = {"-mmin" ~ Timespec}
+
+Mtime = {"-mtime" ~ Timespec}
+
+Anewer = {"-anewer" ~ Filepath}
+
+Cnewer = {"-cnewer" ~ Filepath}
+
+Mnewer = {"-mnewer" ~ Filepath}
+
+Newer = {"-newer" ~ Filepath}
+
+User = {"-user" ~ Username}
+
+Group = {"-group" ~ Groupname}
+
+Uid = {"-uid" ~ Number}
+
+Gid = {"-gid" ~ Number}
+
+Number = {NUMBER+}
+
+Sign = {Plus | Minus}
+Plus = {"+"}
+Minus = {"-"}
+
+SizeSuffix = {Blocks | Bytes | Words | Kb | Mb | Gb }
+Blocks = {"b"}
+Bytes = {"c"}
+Words = {"w"}
+Kb = {"k"}
+Mb = {"M"}
+Gb = {"G"}
+
+Sizespec = ${Sign? ~ Number ~ SizeSuffix?}
+
+Timespec = ${Sign? ~ Number}
+
+Filepath = ${NotWhitespace+}
+
+Username = ${NotWhitespace+}
+
+Groupname = ${NotWhitespace+}
+
+Filetypes = ${Filetype ~ ("," ~ Filetype)?}
+
+Filetype = { BlockFile | CharFile | Directory | NamedPipe | RegularFile | SymbolicLink | Socket}
+
+BlockFile = {"b"}
+CharFile = {"c"}
+Directory = {"d"}
+NamedPipe = {"p"}
+RegularFile = {"f"}
+SymbolicLink = {"l"}
+Socket = {"s"}
+
+UnaryExpr = { Not ~ Term }
+
+Not = { "!" | "-not"}
+
+WHITESPACE = _{ SEPARATOR }
