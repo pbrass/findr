@@ -27,7 +27,7 @@ Path = {"-path" ~ Glob}
 
 Ipath = {"-ipath" ~ Glob}
 
-Name = {"-name" ~ Glob}
+Name = {("--name" | "-name" | "-n") ~ Glob}
 
 Iname = {"-iname" ~ Glob}
 
@@ -45,7 +45,7 @@ True = {"-true"}
 
 False = {"-false"}
 
-Type = {"-type" ~ Filetype}
+Type = {("--type" | "-type" | "-t") ~ Filetype}
 
 Size = {"-size" ~ Sizespec}
 

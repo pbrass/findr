@@ -128,7 +128,8 @@ impl Interpreter {
     }
 
     fn match_regex(pattern: &str, entry: &DirEntry) -> bool {
-        match Regex::new(pattern) {
+        let anchored_pattern = format!("^{}$", pattern);
+        match Regex::new(&anchored_pattern) {
             Ok(regex) => {
                 let path_str = entry.path().to_string_lossy();
                 regex.is_match(&path_str)
@@ -139,7 +140,7 @@ impl Interpreter {
 
     fn match_iregex(pattern: &str, entry: &DirEntry) -> bool {
         // Create case-insensitive regex by prefixing with (?i)
-        let case_insensitive_pattern = format!("(?i){}", pattern);
+        let case_insensitive_pattern = format!("(?i)^{}$", pattern);
         match Regex::new(&case_insensitive_pattern) {
             Ok(regex) => {
                 let path_str = entry.path().to_string_lossy();

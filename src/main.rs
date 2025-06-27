@@ -27,7 +27,7 @@ fn main() {
     let (dirstr, expr) = if split_pos < cmdline.len() {
         cmdline.split_at(split_pos)
     } else {
-        ("", cmdline.as_str())
+        (cmdline.as_str(),"")
     };
     
     //println!("Parsing command: {cmdline}");
@@ -39,7 +39,8 @@ fn main() {
         dirs.push(".".to_string());
     }
     
-    let expr = expr.to_string();
+    let mut expr = expr.trim().to_string();
+    if expr.len() == 0 {expr = "-true".to_string();}
 
     let parsed = FindCommandParser::parse(Rule::Program, &expr)
         .expect("Failed to parse command line");
@@ -48,7 +49,7 @@ fn main() {
         Ok(ast) => {
             for dir in dirs {
                 for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-                    if (Interpreter::evaluate(&ast, &entry)) {
+                    if Interpreter::evaluate(&ast, &entry) {
                         println!("{}", entry.path().display());
                     }
                 }
