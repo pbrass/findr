@@ -1,13 +1,12 @@
 use std::env;
 use pest::Parser;
 use pest_derive::Parser;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 mod ast;
 mod parser;
 mod interpreter;
 
-use ast::*;
 use parser::*;
 use crate::interpreter::Interpreter;
 

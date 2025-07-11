@@ -19,7 +19,51 @@ OrOperator = {"-or" | "-o"}
 Term = {Test | "(" ~ Expr ~ ")" }
 
 Test = { Name | Iname | Regex | True | False | Type | Size | Path | Empty | Amin | Atime | Ctime | Cmin | Mmin
-       | Mtime | Anewer | Cnewer | Mnewer | Newer | Ipath | Iregex | User | Group | Uid | Gid }
+       | Mtime | Anewer | Cnewer | Mnewer | Newer | Ipath | Iregex | User | Group | Uid | Gid  | Perm}
+
+Perm = ${"-perm" ~ PermPrefix? ~ PermTerm}
+// Perm = ${"-perm" ~ PermTerm}
+
+PermPrefix = { PermAllMode | PermAnyMode}
+
+PermAllMode = {"-"}
+
+PermAnyMode = {"/"}
+
+PermTerm = {NumPermTerm | SymPermTerm}
+// PermTerm = {NumPermTerm }
+
+NumPermTerm = {'0'..'7'{3,4}}
+
+SymPermTerm = ${ SymPermTermStmt ~ ("," ~ SymPermTermStmt )*}
+
+SymPermTermStmt = ${SymPrincipal ~ SymPermOperator ~ SymPermPriv}
+
+SymPrincipal =  {SymPrincipalUser | SymPrincipalGroup | SymPrincipalOther | SymPrincipalAll}
+
+SymPrincipalUser = {"u"}
+
+SymPrincipalGroup = {"g"}
+
+SymPrincipalOther = {"o"}
+
+SymPrincipalAll = {"a"}
+
+SymPermOperator = {SymPermOperAdd | SymPermOperRemove | SymPermOperSet}
+
+SymPermOperAdd = {"+"}
+
+SymPermOperRemove = {"-"}
+
+SymPermOperSet = {"="}
+
+SymPermPriv = {SymPermRead | SymPermWrite | SymPermExecute}
+
+SymPermRead = {"r"}
+
+SymPermWrite = {"w"}
+
+SymPermExecute = {"x"}
 
 Empty = {"-empty"}
 

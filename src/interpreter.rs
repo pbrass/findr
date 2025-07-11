@@ -1,6 +1,5 @@
 use walkdir::DirEntry;
-use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::SystemTime;
 use std::fs;
 use regex::Regex;
 use glob::Pattern;
@@ -151,7 +150,6 @@ impl Interpreter {
     }
 
     fn match_type(file_type: &FileType, entry: &DirEntry) -> bool {
-        let path = entry.path();
         let metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(_) => return false,

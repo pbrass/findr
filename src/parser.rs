@@ -1,13 +1,12 @@
 use pest::iterators::{Pair, Pairs};
 use crate::ast::*;
-use crate::{FindCommandParser, Rule};
+use crate::Rule;
 
 /// Parser error type
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedRule { expected: String, found: String },
     InvalidNumber(String),
-    InvalidSizeSpec(String),
 }
 
 impl std::fmt::Display for ParseError {
@@ -17,7 +16,6 @@ impl std::fmt::Display for ParseError {
                 write!(f, "Expected {}, found {}", expected, found)
             }
             ParseError::InvalidNumber(s) => write!(f, "Invalid number: {}", s),
-            ParseError::InvalidSizeSpec(s) => write!(f, "Invalid size specification: {}", s),
         }
     }
 }
@@ -160,7 +158,6 @@ fn parse_test(pair: Pair<Rule>) -> Result<Test, ParseError> {
     match inner.as_rule() {
         Rule::Path => {
             let mut inner = inner.into_inner();
-            //let _name_token = inner.next().unwrap(); // Skip "-path"
             let glob = inner.next().unwrap();
             Ok(Test::Path(glob.as_str().to_string()))
         }
@@ -171,19 +168,16 @@ fn parse_test(pair: Pair<Rule>) -> Result<Test, ParseError> {
         }
         Rule::Name => {
             let mut inner = inner.into_inner();
-            //let _name_token = inner.next().unwrap(); // Skip "-name"
             let glob = inner.next().unwrap();
             Ok(Test::Name(glob.as_str().to_string()))
         }
         Rule::Iname => {
             let mut inner = inner.into_inner();
-            //let _iname_token = inner.next().unwrap(); // Skip "-iname"
             let glob = inner.next().unwrap();
             Ok(Test::Iname(glob.as_str().to_string()))
         }
         Rule::Regex => {
             let mut inner = inner.into_inner();
-            //let _regex_token = inner.next().unwrap(); // Skip "-regex"
             let pattern = inner.next().unwrap();
             Ok(Test::Regex(pattern.as_str().to_string()))
         }
@@ -196,14 +190,12 @@ fn parse_test(pair: Pair<Rule>) -> Result<Test, ParseError> {
         Rule::False => Ok(Test::False),
         Rule::Type => {
             let mut inner = inner.into_inner();
-            //let _type_token = inner.next().unwrap(); // Skip "-type"
             let filetype = inner.next().unwrap();
             let file_type = parse_filetype(filetype)?;
             Ok(Test::Type(file_type))
         }
         Rule::Size => {
             let mut inner = inner.into_inner();
-            //let _size_token = inner.next().unwrap(); // Skip "-size"
             let sizespec = inner.next().unwrap();
             let size_spec = parse_sizespec(sizespec)?;
             Ok(Test::Size(size_spec))
