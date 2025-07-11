@@ -4,10 +4,12 @@ use std::fs;
 use regex::Regex;
 use glob::Pattern;
 use crate::ast::*;
-use libc;
+//use libc;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use file_owner::PathExt;
 
 /// Interpreter for evaluating AST expressions against directory entries
 pub struct Interpreter;
@@ -50,6 +52,7 @@ impl Interpreter {
             Test::Group(groupname) => Self::match_group(groupname, entry),
             Test::Uid(uid) => Self::match_uid(*uid, entry),
             Test::Gid(gid) => Self::match_gid(*gid, entry),
+            Test::Perm(perm_spec) => Self::match_perm(perm_spec, entry),
         }
     }
 
@@ -331,14 +334,18 @@ impl Interpreter {
             // If not numeric, try to resolve username to UID
             // This is a simplified implementation - in practice you'd use getpwnam
             // For now, we'll just do string comparison with the current user
-            if let Ok(current_user) = std::env::var("USER") {
+            let o = entry.path().owner().unwrap();
+            return username == o.name().unwrap().unwrap().to_string();
+/*            if let Ok(current_user) = std::env::var("USER") {
                 if username == current_user {
                     // Get current user's UID
                     return file_uid == unsafe { libc::getuid() };
                 }
             }
-            
+
             false
+
+ */
         }
         
         #[cfg(not(unix))]
@@ -367,6 +374,9 @@ impl Interpreter {
             // If not numeric, try to resolve group name to GID
             // This is a simplified implementation - in practice you'd use getgrnam
             // For now, we'll just do string comparison with the current group
+            let g = entry.path().owner().unwrap();
+            return groupname == g.name().unwrap().unwrap().to_string();
+/*
             if let Ok(current_group) = std::env::var("GROUP") {
                 if groupname == current_group {
                     // Get current user's primary GID
@@ -375,6 +385,8 @@ impl Interpreter {
             }
             
             false
+
+ */
         }
         
         #[cfg(not(unix))]
@@ -423,6 +435,121 @@ impl Interpreter {
         }
     }
 
+
+    fn match_perm(perm_spec: &PermSpec, entry: &DirEntry) -> bool {
+        let metadata = match Self::get_metadata(entry) {
+            Some(metadata) => metadata,
+            None => return false,
+        };
+
+        #[cfg(unix)]
+        {
+            let file_mode = metadata.mode();
+            let file_perms = file_mode & 0o777; // Extract permission bits
+            
+            match &perm_spec.term {
+                PermTerm::Numeric(target_perms) => {
+                    Self::match_numeric_perm(*target_perms, file_perms, &perm_spec.prefix)
+                }
+                PermTerm::Symbolic(statements) => {
+                    Self::match_symbolic_perm(statements, file_perms, &perm_spec.prefix)
+                }
+            }
+        }
+        
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, permission checking is not supported
+            false
+        }
+    }
+
+    #[cfg(unix)]
+    fn match_numeric_perm(target_perms: u32, file_perms: u32, prefix: &Option<PermPrefix>) -> bool {
+        match prefix {
+            None => {
+                // Exact match
+                file_perms == target_perms
+            }
+            Some(PermPrefix::AllMode) => {
+                // All specified bits must be set (target_perms is a subset of file_perms)
+                (file_perms & target_perms) == target_perms
+            }
+            Some(PermPrefix::AnyMode) => {
+                // Any of the specified bits can be set
+                (file_perms & target_perms) != 0
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    fn match_symbolic_perm(statements: &[SymPermStatement], file_perms: u32, prefix: &Option<PermPrefix>) -> bool {
+        // Convert symbolic statements to numeric representation
+        let target_perms = Self::symbolic_to_numeric(statements, file_perms);
+        Self::match_numeric_perm(target_perms, file_perms, prefix)
+    }
+
+    #[cfg(unix)]
+    fn symbolic_to_numeric(statements: &[SymPermStatement], current_perms: u32) -> u32 {
+        let mut result_perms = current_perms;
+        
+        for statement in statements {
+            let perm_mask = Self::get_permission_mask(&statement.principal, &statement.privileges);
+            
+            match statement.operator {
+                SymPermOperator::Add => {
+                    result_perms |= perm_mask;
+                }
+                SymPermOperator::Remove => {
+                    result_perms &= !perm_mask;
+                }
+                SymPermOperator::Set => {
+                    // Clear the relevant bits first, then set the new ones
+                    let principal_mask = Self::get_principal_mask(&statement.principal);
+                    result_perms &= !principal_mask;
+                    result_perms |= perm_mask;
+                }
+            }
+        }
+        
+        result_perms
+    }
+
+    #[cfg(unix)]
+    fn get_permission_mask(principal: &SymPrincipal, privileges: &[SymPermPriv]) -> u32 {
+        let mut mask = 0u32;
+        
+        for privilege in privileges {
+            let perm_bit = match privilege {
+                SymPermPriv::Read => 0o4,
+                SymPermPriv::Write => 0o2,
+                SymPermPriv::Execute => 0o1,
+            };
+            
+            match principal {
+                SymPrincipal::User => mask |= perm_bit << 6,
+                SymPrincipal::Group => mask |= perm_bit << 3,
+                SymPrincipal::Other => mask |= perm_bit,
+                SymPrincipal::All => {
+                    mask |= perm_bit << 6; // user
+                    mask |= perm_bit << 3; // group
+                    mask |= perm_bit;      // other
+                }
+            }
+        }
+        
+        mask
+    }
+
+    #[cfg(unix)]
+    fn get_principal_mask(principal: &SymPrincipal) -> u32 {
+        match principal {
+            SymPrincipal::User => 0o700,
+            SymPrincipal::Group => 0o070,
+            SymPrincipal::Other => 0o007,
+            SymPrincipal::All => 0o777,
+        }
+    }
 
     fn calculate_size_in_bytes(size_spec: &SizeSpec) -> u64 {
         let multiplier = match size_spec.suffix.as_ref() {
@@ -536,5 +663,75 @@ mod tests {
         // Test NOT
         let not_expr = Expr::Not(Box::new(Expr::Test(Test::False)));
         assert!(Interpreter::evaluate(&not_expr, &entry));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_numeric_permission_matching() {
+        use std::os::unix::fs::PermissionsExt;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "test content").unwrap();
+        
+        // Set specific permissions (644)
+        let permissions = fs::Permissions::from_mode(0o644);
+        fs::set_permissions(&file_path, permissions).unwrap();
+        
+        let entry = walkdir::WalkDir::new(&file_path)
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+
+        // Test exact match
+        let perm_test = Test::Perm(PermSpec {
+            prefix: None,
+            term: PermTerm::Numeric(0o644),
+        });
+        assert!(Interpreter::evaluate(&Expr::Test(perm_test), &entry));
+
+        // Test all mode (file has 644, checking for 044 should pass)
+        let perm_test_all = Test::Perm(PermSpec {
+            prefix: Some(PermPrefix::AllMode),
+            term: PermTerm::Numeric(0o044),
+        });
+        assert!(Interpreter::evaluate(&Expr::Test(perm_test_all), &entry));
+
+        // Test any mode (file has 644, checking for 200 should pass)
+        let perm_test_any = Test::Perm(PermSpec {
+            prefix: Some(PermPrefix::AnyMode),
+            term: PermTerm::Numeric(0o200),
+        });
+        assert!(Interpreter::evaluate(&Expr::Test(perm_test_any), &entry));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_symbolic_permission_matching() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, "test content").unwrap();
+        
+        let entry = walkdir::WalkDir::new(&file_path)
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+
+        // Test symbolic permission (u+r should match files with user read permission)
+        let symbolic_stmt = SymPermStatement {
+            principal: SymPrincipal::User,
+            operator: SymPermOperator::Add,
+            privileges: vec![SymPermPriv::Read],
+        };
+        
+        let perm_test = Test::Perm(PermSpec {
+            prefix: Some(PermPrefix::AllMode),
+            term: PermTerm::Symbolic(vec![symbolic_stmt]),
+        });
+        
+        // This should typically pass since most files have user read permission
+        assert!(Interpreter::evaluate(&Expr::Test(perm_test), &entry));
     }
 }

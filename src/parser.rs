@@ -283,6 +283,11 @@ fn parse_test(pair: Pair<Rule>) -> Result<Test, ParseError> {
                 .map_err(|_| ParseError::InvalidNumber(gid_str.as_str().to_string()))?;
             Ok(Test::Gid(gid))
         }
+        Rule::Perm => {
+            let inner = inner.into_inner();
+            let perm_spec = parse_perm_rule(inner)?;
+            Ok(Test::Perm(perm_spec))
+        }
         _ => Err(ParseError::UnexpectedRule {
             expected: "Test variant".to_string(),
             found: format!("{:?}", inner.as_rule()),
@@ -371,4 +376,147 @@ fn parse_timespec(pair: Pair<Rule>) -> Result<TimeSpec, ParseError> {
     }
     
     Ok(TimeSpec { sign, value })
+}
+
+fn parse_perm_rule(mut pairs: Pairs<Rule>) -> Result<PermSpec, ParseError> {
+    let mut prefix = None;
+    let mut term = None;
+    
+    while let Some(pair) = pairs.next() {
+        match pair.as_rule() {
+            Rule::PermPrefix => {
+                prefix = Some(parse_perm_prefix(pair)?);
+            }
+            Rule::PermTerm => {
+                term = Some(parse_perm_term(pair)?);
+            }
+            _ => {}
+        }
+    }
+    
+    let term = term.ok_or(ParseError::UnexpectedRule {
+        expected: "PermTerm".to_string(),
+        found: "None".to_string(),
+    })?;
+    
+    Ok(PermSpec { prefix, term })
+}
+
+
+fn parse_perm_prefix(pair: Pair<Rule>) -> Result<PermPrefix, ParseError> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::PermAllMode => Ok(PermPrefix::AllMode),
+        Rule::PermAnyMode => Ok(PermPrefix::AnyMode),
+        _ => Err(ParseError::UnexpectedRule {
+            expected: "PermAllMode or PermAnyMode".to_string(),
+            found: format!("{:?}", inner.as_rule()),
+        }),
+    }
+}
+
+fn parse_perm_term(pair: Pair<Rule>) -> Result<PermTerm, ParseError> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::NumPermTerm => {
+            let perm_str = inner.as_str();
+            let perm = u32::from_str_radix(perm_str, 8)
+                .map_err(|_| ParseError::InvalidNumber(perm_str.to_string()))?;
+            Ok(PermTerm::Numeric(perm))
+        }
+        Rule::SymPermTerm => {
+            let statements = parse_sym_perm_term(inner)?;
+            Ok(PermTerm::Symbolic(statements))
+        }
+        _ => Err(ParseError::UnexpectedRule {
+            expected: "NumPermTerm or SymPermTerm".to_string(),
+            found: format!("{:?}", inner.as_rule()),
+        }),
+    }
+}
+
+fn parse_sym_perm_term(pair: Pair<Rule>) -> Result<Vec<SymPermStatement>, ParseError> {
+    let mut statements = Vec::new();
+    
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::SymPermTermStmt => {
+                let statement = parse_sym_perm_term_stmt(inner)?;
+                statements.push(statement);
+            }
+            _ => {}
+        }
+    }
+    
+    Ok(statements)
+}
+
+fn parse_sym_perm_term_stmt(pair: Pair<Rule>) -> Result<SymPermStatement, ParseError> {
+    let mut inner = pair.into_inner();
+    
+    let principal_pair = inner.next().ok_or(ParseError::UnexpectedRule {
+        expected: "SymPrincipal".to_string(),
+        found: "None".to_string(),
+    })?;
+    let principal = parse_sym_principal(principal_pair)?;
+    
+    let operator_pair = inner.next().ok_or(ParseError::UnexpectedRule {
+        expected: "SymPermOperator".to_string(),
+        found: "None".to_string(),
+    })?;
+    let operator = parse_sym_perm_operator(operator_pair)?;
+    
+    let mut privileges = Vec::new();
+    while let Some(priv_pair) = inner.next() {
+        if priv_pair.as_rule() == Rule::SymPermPriv {
+            let privilege = parse_sym_perm_priv(priv_pair)?;
+            privileges.push(privilege);
+        }
+    }
+    
+    Ok(SymPermStatement {
+        principal,
+        operator,
+        privileges,
+    })
+}
+
+fn parse_sym_principal(pair: Pair<Rule>) -> Result<SymPrincipal, ParseError> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::SymPrincipalUser => Ok(SymPrincipal::User),
+        Rule::SymPrincipalGroup => Ok(SymPrincipal::Group),
+        Rule::SymPrincipalOther => Ok(SymPrincipal::Other),
+        Rule::SymPrincipalAll => Ok(SymPrincipal::All),
+        _ => Err(ParseError::UnexpectedRule {
+            expected: "SymPrincipal variant".to_string(),
+            found: format!("{:?}", inner.as_rule()),
+        }),
+    }
+}
+
+fn parse_sym_perm_operator(pair: Pair<Rule>) -> Result<SymPermOperator, ParseError> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::SymPermOperAdd => Ok(SymPermOperator::Add),
+        Rule::SymPermOperRemove => Ok(SymPermOperator::Remove),
+        Rule::SymPermOperSet => Ok(SymPermOperator::Set),
+        _ => Err(ParseError::UnexpectedRule {
+            expected: "SymPermOperator variant".to_string(),
+            found: format!("{:?}", inner.as_rule()),
+        }),
+    }
+}
+
+fn parse_sym_perm_priv(pair: Pair<Rule>) -> Result<SymPermPriv, ParseError> {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::SymPermRead => Ok(SymPermPriv::Read),
+        Rule::SymPermWrite => Ok(SymPermPriv::Write),
+        Rule::SymPermExecute => Ok(SymPermPriv::Execute),
+        _ => Err(ParseError::UnexpectedRule {
+            expected: "SymPermPriv variant".to_string(),
+            found: format!("{:?}", inner.as_rule()),
+        }),
+    }
 }

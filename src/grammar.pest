@@ -21,7 +21,7 @@ Term = {Test | "(" ~ Expr ~ ")" }
 Test = { Name | Iname | Regex | True | False | Type | Size | Path | Empty | Amin | Atime | Ctime | Cmin | Mmin
        | Mtime | Anewer | Cnewer | Mnewer | Newer | Ipath | Iregex | User | Group | Uid | Gid  | Perm}
 
-Perm = ${"-perm" ~ PermPrefix? ~ PermTerm}
+Perm = {"-perm" ~ PermPrefix? ~ PermTerm}
 // Perm = ${"-perm" ~ PermTerm}
 
 PermPrefix = { PermAllMode | PermAnyMode}
@@ -33,11 +33,11 @@ PermAnyMode = {"/"}
 PermTerm = {NumPermTerm | SymPermTerm}
 // PermTerm = {NumPermTerm }
 
-NumPermTerm = {'0'..'7'{3,4}}
+NumPermTerm = {('0'..'7'){3,4}}
 
-SymPermTerm = ${ SymPermTermStmt ~ ("," ~ SymPermTermStmt )*}
+SymPermTerm = { SymPermTermStmt ~ ("," ~ SymPermTermStmt )*}
 
-SymPermTermStmt = ${SymPrincipal ~ SymPermOperator ~ SymPermPriv}
+SymPermTermStmt = {SymPrincipal ~ SymPermOperator ~ SymPermPriv+}
 
 SymPrincipal =  {SymPrincipalUser | SymPrincipalGroup | SymPrincipalOther | SymPrincipalAll}
 

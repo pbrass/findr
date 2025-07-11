@@ -66,6 +66,8 @@ pub enum Test {
     Uid(u32),
     /// Match files by numeric GID
     Gid(u32),
+    /// Match files by permissions
+    Perm(PermSpec),
 }
 
 /// File types for the -type test
@@ -160,4 +162,77 @@ pub struct TimeSpec {
     pub sign: Sign,
     /// Time value (units depend on the test: minutes for -amin/-cmin/-mmin, days for -atime/-ctime/-mtime)
     pub value: u64,
+}
+
+/// Permission specification for the -perm test
+#[derive(Debug, Clone)]
+pub struct PermSpec {
+    /// Permission prefix (none, -, /)
+    pub prefix: Option<PermPrefix>,
+    /// Permission term (numeric or symbolic)
+    pub term: PermTerm,
+}
+
+/// Permission prefix for permission matching
+#[derive(Debug, Clone)]
+pub enum PermPrefix {
+    /// All permissions must match (-)
+    AllMode,
+    /// Any permissions can match (/)
+    AnyMode,
+}
+
+/// Permission term (numeric or symbolic)
+#[derive(Debug, Clone)]
+pub enum PermTerm {
+    /// Numeric permission (e.g., 755, 0644)
+    Numeric(u32),
+    /// Symbolic permission (e.g., u+rwx,g+r)
+    Symbolic(Vec<SymPermStatement>),
+}
+
+/// Symbolic permission statement
+#[derive(Debug, Clone)]
+pub struct SymPermStatement {
+    /// Principal (user, group, other, all)
+    pub principal: SymPrincipal,
+    /// Operation (add, remove, set)
+    pub operator: SymPermOperator,
+    /// Privileges (read, write, execute)
+    pub privileges: Vec<SymPermPriv>,
+}
+
+/// Symbolic permission principal
+#[derive(Debug, Clone)]
+pub enum SymPrincipal {
+    /// User (u)
+    User,
+    /// Group (g)
+    Group,
+    /// Other (o)
+    Other,
+    /// All (a)
+    All,
+}
+
+/// Symbolic permission operator
+#[derive(Debug, Clone)]
+pub enum SymPermOperator {
+    /// Add permission (+)
+    Add,
+    /// Remove permission (-)
+    Remove,
+    /// Set permission (=)
+    Set,
+}
+
+/// Symbolic permission privilege
+#[derive(Debug, Clone)]
+pub enum SymPermPriv {
+    /// Read permission (r)
+    Read,
+    /// Write permission (w)
+    Write,
+    /// Execute permission (x)
+    Execute,
 }
