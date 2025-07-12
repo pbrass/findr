@@ -11,3 +11,5 @@ default, just print the filename. No pruning, no execution.
 I admit this one got away from me a bit, but you can't ask me to
 implement a scaled down version of a program that has a perfectly
 good predicate logic language in its command-line options.
+
+Learned a lot about using Pest in Rust to implement a little DSL. Fun!
